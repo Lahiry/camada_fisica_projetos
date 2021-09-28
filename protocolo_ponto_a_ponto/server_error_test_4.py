@@ -14,8 +14,6 @@ from enlace import *
 import numpy as np
 import time
 from datagrama import Datagrama
-from log import Log
-from logs import Logs
 
 # voce deverá descomentar e configurar a porta com através da qual ira fazer comunicaçao
 #   para saber a sua porta, execute no terminal :
@@ -41,6 +39,8 @@ serialName = "COM3"                 # Windows(variacao de)
 # PAYLOAD – variável entre 0 e 114 bytes. Reservado à transmissão dos arquivos.
 # EOP – 4 bytes: 0xFF 0xAA 0xFF 0xA
 
+# ERRO: Transmissão com ausência de resposta de pacote de dados recebido, por mais de 20 segundos 
+
 def main():
     try:
         
@@ -55,23 +55,15 @@ def main():
         print('Início da recepção')
 
         comunicacao_ativa = True
-        logs = Logs()
         while comunicacao_ativa:
         # esperando mensagem
             ocioso = True
             while ocioso:
                 print('estou ocioso')
-                head, nRx = com.getData(10, False)
-                #print(f'head recebido: {head}')
-                eop, nRx = com.getData(4, False)
-                #print(f'eop recebido: {eop}')
-
-                # << LOG >>
-                msg = Datagrama(head=head)
-                log_mensagem = Log(msg.format_datagrama(), 'receb')
-                log_mensagem = log_mensagem.create_log()
-                logs.addLog(log_mensagem)
-
+                head, nRx = com.getData(10)
+                print(f'head recebido: {head}')
+                eop, nRx = com.getData(4)
+                print(f'eop recebido: {eop}')
                 tipo_msg = head[0]
                 print(f'Tipo da mensagem recebida: {tipo_msg}')
                 if tipo_msg == 1:
@@ -89,30 +81,22 @@ def main():
             # na escuta
             msg_t2 = Datagrama()
             msg_t2.create_head(h0=b'\x02')
-            #com.sendData(msg_t2.format_datagrama())
-
-            # << LOG >>
-            log_mensagem_t2 = Log(msg_t2.format_datagrama(), 'envio')
-            log_mensagem_t2 = log_mensagem_t2.create_log()
-            logs.addLog(log_mensagem_t2)
-
+            com.sendData(msg_t2.format_datagrama())
             print('Handshake respondido!')
             print(f'Mensagem t2 enviada: {msg_t2.format_datagrama()}')
 
             cont = 1
             id_ultimo_pacote_recebido = 0
             lista_payloads = []
-            time_out = False
             print(f'Total de pacotes a serem recebidos: {total_pacotes_arquivo}')
 
             timer_02 = time.time()
 
             while cont <= total_pacotes_arquivo:
                 head, nRx = com.getData(10)
-                #print(f'head recebido: {head}')
-
+                print(f'head recebido: {head}')
                 tipo_msg = head[0]
-                #print(f'Tipo da mensagem recebida: {tipo_msg}')
+                print(f'Tipo da mensagem recebida: {tipo_msg}')
                 if tipo_msg == 3:
                     total_pacotes_arquivo_recebido = head[3]
                     print(f'Total de Pacotes do arquivo: {total_pacotes_arquivo_recebido}')
@@ -123,30 +107,17 @@ def main():
                     crc = head[8:10]
                     time.sleep(0.1)
                     payload, nRx = com.getData(payload_size)
-
-                    # << LOG >>
-                    msg = Datagrama(head=head, payload=payload)
-                    log_mensagem = Log(msg.format_datagrama(), 'receb')
-                    log_mensagem = log_mensagem.create_log()
-                    logs.addLog(log_mensagem)
-
                     time.sleep(0.1)
                     eop, nRx = com.getData(4)
-                    #print(f'eop recebido: {eop}')
+                    print(f'eop recebido: {eop}')
                     if (id_pacote == cont) and (eop == b'\xFF\xAA\xFF\xAA'):
                         id_ultimo_pacote_recebido = id_pacote
                         print(f'ID do pacote recebido: {id_pacote}')
-                        #print(f'Payload do pacote recebido: {payload}')
+                        print(f'Payload do pacote recebido: {payload}')
                         msg_t4 = Datagrama()
                         msg_t4.create_head(h0=b'\x04', h7=id_ultimo_pacote_recebido.to_bytes(1, byteorder="big"))
                         com.sendData(msg_t4.format_datagrama())
                         print(f'Mensagem t4 enviada: {msg_t4.format_datagrama()}')
-
-                        # << LOG >>
-                        log_mensagem_t4 = Log(msg_t4.format_datagrama(), 'envio')
-                        log_mensagem_t4 = log_mensagem_t4.create_log()
-                        logs.addLog(log_mensagem_t4)
-                        
                         lista_payloads.append(payload)
                         cont += 1
                     else:
@@ -155,11 +126,6 @@ def main():
                         msg_t6.create_head(h0=b'\x06', h6=int.to_bytes(cont, 1, byteorder="big"))
                         com.sendData(msg_t6.format_datagrama())
                         print(f'Mensagem t6 enviada: {msg_t6.format_datagrama()}')
-
-                        # << LOG >>
-                        log_mensagem_t6 = Log(msg_t6.format_datagrama(), 'envio')
-                        log_mensagem_t6 = log_mensagem_t6.create_log()
-                        logs.addLog(log_mensagem_t6)
                 else:
                     time.sleep(1)
                     if time.time() - timer_02 > 20:
@@ -169,20 +135,12 @@ def main():
                         msg_t5.create_head(h0=b'\x05')
                         com.sendData(msg_t5.format_datagrama())
                         print(f'Mensagem t5 enviada: {msg_t5.format_datagrama()}')
-
-                        # << LOG >>
-                        log_mensagem_t5 = Log(msg_t5.format_datagrama(), 'envio')
-                        log_mensagem_t5 = log_mensagem_t5.create_log()
-                        logs.addLog(log_mensagem_t5)
-
                         comunicacao_ativa = False
-                        time_out = True
                         # Encerra comunicação
                         print("-------------------------")
                         print("Comunicação encerrada")
                         print("-------------------------")
                         com.disable()
-                        logs.create_logs('Server', 3)
                         break
                     else:
                         if head == b'\x00':
@@ -191,32 +149,23 @@ def main():
                             msg_t4.create_head(h0=b'\x04', h7=id_ultimo_pacote_recebido.to_bytes(1, byteorder="big"))
                             com.sendData(msg_t4.format_datagrama())
                             print(f'Mensagem t4 enviada: {msg_t4.format_datagrama()}')
+                            
+            print('DADOS RECEBIDOS COM SUCESSO!')
 
-                            # << LOG >>
-                            log_mensagem_t4 = Log(msg_t4.format_datagrama(), 'envio')
-                            log_mensagem_t4 = log_mensagem_t4.create_log()
-                            logs.addLog(log_mensagem_t4)
+            arquivo_final = int.to_bytes(0, 0, byteorder="big")
+            for payload in lista_payloads:
+                arquivo_final += payload
 
-            if not time_out:                
-                print('DADOS RECEBIDOS COM SUCESSO!')
+            with open('img/apple_client.png', 'wb') as img:
+                img.write(arquivo_final)
 
-                logs.create_logs('Server', 3)
+            comunicacao_ativa = False
 
-                if len(lista_payloads) == total_pacotes_arquivo:
-
-                    arquivo_final = int.to_bytes(0, 0, byteorder="big")
-                    for payload in lista_payloads:
-                        arquivo_final += payload
-
-                    with open('img/apple_client.png', 'wb') as img:
-                        img.write(arquivo_final)
-
-                comunicacao_ativa = False
-
-                print("-------------------------")
-                print("Comunicação encerrada")
-                print("-------------------------")
-                com.disable()
+        print("-------------------------")
+        print("Comunicação encerrada")
+        print("-------------------------")
+        com.disable()
+        
 
     except Exception as erro:
         print("ops! :-\\")
