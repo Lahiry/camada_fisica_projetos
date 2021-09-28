@@ -15,6 +15,7 @@ import random
 from datagrama import Datagrama 
 from log import Log
 from logs import Logs
+from crc import CrcCalculator, Crc8
 
 # voce deverá descomentar e configurar a porta com através da qual ira fazer comunicaçao
 #   para saber a sua porta, execute no terminal :
@@ -31,6 +32,8 @@ def main():
         com.enable()
 
         com.fisica.flush()
+
+        crc_calculator = CrcCalculator(Crc8.CCITT)
 
         # Abrindo o arquivo de imagem e tranformando em binario
         with open("img/apple.png", "rb") as arch:
@@ -59,14 +62,19 @@ def main():
         i = 1
         for payload in lista_payloads:
 
+            checksum = int.to_bytes(crc_calculator.calculate_checksum(payload), 2, byteorder="big")
+            #print(f'Checksum: {checksum}')
+
             h0 = int.to_bytes(3,1, byteorder="big") # tipo de mensagem 
             h3 = int.to_bytes(total_pacotes,1, byteorder="big") # total de pacotes do arquivo 
             h4  = int.to_bytes(i,1, byteorder="big") # numero do pacote sendo enviado (id)
             i += 1
             h5 = int.to_bytes(len(payload),1, byteorder="big") # tipo do arquivo, no caso, DADOS, ou seja, aqui entra o tamanho do payload
+            h8 = int.to_bytes(checksum[0], 1, byteorder="big")
+            h9 = int.to_bytes(checksum[1], 1, byteorder="big")
 
             pacote = Datagrama()
-            pacote.create_head(h0=h0, h3=h3, h4=h4, h5=h5)
+            pacote.create_head(h0=h0, h3=h3, h4=h4, h5=h5, h8=h8, h9=h9)
             pacote.payload = payload
             
             lista_pacotes.append(pacote.format_datagrama())
@@ -114,15 +122,6 @@ def main():
                     print('Recebi a mensagem! Hadshake feito!')
                     msg_1_OK = True
                     cont += 1
-
-                elif tipo_msg == 0:
-                    print("-------------------------")
-                    print("Comunicação encerrada")
-                    print("-------------------------")
-                    com.disable()
-                    logs.create_logs('Server', 3)
-                    inicia = False
-                    break
 
                 else:
                     com.sendData(msg_t1.format_datagrama())
@@ -205,7 +204,7 @@ def main():
                         print(f'Mensagem t5 enviada!')
 
                         # << LOG >>
-                        log_mensagem_t5 = Log(msg_t5, 'envio')
+                        log_mensagem_t5 = Log(msg_t5.format_datagrama(), 'envio')
                         log_mensagem_t5 = log_mensagem_t5.create_log()
                         logs.addLog(log_mensagem_t5)
 
@@ -216,15 +215,14 @@ def main():
                         com.disable()
                         inicia = False
                         time_out = True
-                        logs.create_logs('Client', 3)
                         break
                 if time_out:
                     break
 
+            #logs.create_logs('Client', 5)
+
             if not time_out:
                 print('<<< ENVIO DOS PACOTES FINALIZADO!! >>>')
-
-                logs.create_logs('Client', 3)
 
                 inicia = False
 

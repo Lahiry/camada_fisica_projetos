@@ -16,6 +16,7 @@ import time
 from datagrama import Datagrama
 from log import Log
 from logs import Logs
+from crc import CrcCalculator, Crc8
 
 # voce deverá descomentar e configurar a porta com através da qual ira fazer comunicaçao
 #   para saber a sua porta, execute no terminal :
@@ -49,6 +50,8 @@ def main():
         com.enable()
 
         com.fisica.flush()
+
+        crc_calculator = CrcCalculator(Crc8.CCITT)
 
         print('Comunicação aberta')
         
@@ -89,9 +92,9 @@ def main():
             # na escuta
             msg_t2 = Datagrama()
             msg_t2.create_head(h0=b'\x02')
-            #com.sendData(msg_t2.format_datagrama())
+            com.sendData(msg_t2.format_datagrama())
 
-            # << LOG >>
+            #<< LOG >>
             log_mensagem_t2 = Log(msg_t2.format_datagrama(), 'envio')
             log_mensagem_t2 = log_mensagem_t2.create_log()
             logs.addLog(log_mensagem_t2)
@@ -121,8 +124,12 @@ def main():
                     payload_size = head[5]
                     print(f'Payload size: {payload_size}')
                     crc = head[8:10]
+                    print(f'CRC: {crc}')
                     time.sleep(0.1)
                     payload, nRx = com.getData(payload_size)
+
+                    checksum = crc_calculator.calculate_checksum(payload)
+                    print(f'Checksum: {checksum}')
 
                     # << LOG >>
                     msg = Datagrama(head=head, payload=payload)
@@ -133,7 +140,7 @@ def main():
                     time.sleep(0.1)
                     eop, nRx = com.getData(4)
                     #print(f'eop recebido: {eop}')
-                    if (id_pacote == cont) and (eop == b'\xFF\xAA\xFF\xAA'):
+                    if (id_pacote == cont) and (eop == b'\xFF\xAA\xFF\xAA') and (checksum == int.from_bytes(crc, byteorder="big")):
                         id_ultimo_pacote_recebido = id_pacote
                         print(f'ID do pacote recebido: {id_pacote}')
                         #print(f'Payload do pacote recebido: {payload}')
@@ -182,7 +189,6 @@ def main():
                         print("Comunicação encerrada")
                         print("-------------------------")
                         com.disable()
-                        logs.create_logs('Server', 3)
                         break
                     else:
                         if head == b'\x00':
@@ -197,10 +203,11 @@ def main():
                             log_mensagem_t4 = log_mensagem_t4.create_log()
                             logs.addLog(log_mensagem_t4)
 
+
+            #logs.create_logs('Server', 5)
+
             if not time_out:                
                 print('DADOS RECEBIDOS COM SUCESSO!')
-
-                logs.create_logs('Server', 3)
 
                 if len(lista_payloads) == total_pacotes_arquivo:
 
@@ -208,7 +215,7 @@ def main():
                     for payload in lista_payloads:
                         arquivo_final += payload
 
-                    with open('img/apple_client.png', 'wb') as img:
+                    with open('img/apple.png', 'wb') as img:
                         img.write(arquivo_final)
 
                 comunicacao_ativa = False

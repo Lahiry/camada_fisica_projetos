@@ -10,13 +10,16 @@ class Log():
     if self.tipo_msg == 3:
       self.id_pacote_enviado = mensagem[4]
       self.total_pacotes_arquivo = mensagem[3]
+      self.crc = str(mensagem[8:10]).upper()
+      self.crc = self.crc[4:6] + self.crc[8:10]
     else:
       self.id_pacote_enviado = ''
       self.total_pacotes_arquivo = ''
+      self.crc = ''
 
   def create_log(self):
     if self.tipo_msg == 3:
-      log = f'{self.time} / {self.envio_ou_recebimento} / {self.tipo_msg} / {self.tamanho_total} / {self.id_pacote_enviado} / {self.total_pacotes_arquivo}'
+      log = f'{self.time} / {self.envio_ou_recebimento} / {self.tipo_msg} / {self.tamanho_total} / {self.id_pacote_enviado} / {self.total_pacotes_arquivo} / {self.crc}'
     else:
       log = f'{self.time} / {self.envio_ou_recebimento} / {self.tipo_msg} / {self.tamanho_total}'
     return log

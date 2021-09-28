@@ -72,7 +72,7 @@ class RX(object):
             timer_1 = time.time()
             while(self.getBufferLen() < size): 
                 time.sleep(0.5)
-                if time.time() - timer_1 > 20:
+                if time.time() - timer_1 > 5:
                     return b'\x00'
         else:
             while(self.getBufferLen() < size): 
@@ -82,8 +82,3 @@ class RX(object):
 
     def clearBuffer(self):
         self.buffer = b""
-
-
-# if time.time() - time_count > 5:
-#                 code = int.to_bytes(0, 5, byteorder="big")
-#                 return code 
